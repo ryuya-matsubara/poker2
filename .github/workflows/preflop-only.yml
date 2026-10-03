@@ -1,0 +1,56 @@
+name: Make poker2 preflop only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/preflop-only.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Convert game to preflop-only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html')
+          s=p.read_text()
+
+          # Every hand begins with 40BB for every player.
+          s=s.replace("game.players.forEach(p=>{if(p.stack<=0.001)p.stack=40;p.hole=[];p.fold=false;p.allin=false;p.contrib=0;p.streetBet=0;p.action='';p.total=0})",
+                      "game.players.forEach(p=>{p.stack=40;p.hole=[];p.fold=false;p.allin=false;p.contrib=0;p.streetBet=0;p.action='';p.total=0})")
+
+          # Once preflop betting is complete, run out the board immediately and settle.
+          start=s.find('function finishStreet(){')
+          end=s.find('function run(){', start)
+          if start < 0 or end < 0:
+              raise SystemExit('finishStreet block not found')
+          s=s[:start]+"function finishStreet(){while(game.board.length<5)game.board.push(game.deck.pop());return showdown()}\n"+s[end:]
+
+          # CPU never falls through to postflop heuristic logic.
+          s=s.replace("function cpuAction(i){let acts=legal(i),s=game.street==='preflop'?preStrategy(i):null;if(s)return weightedChoice(s,acts);if(game.street==='preflop')return fallbackPre(i,acts);return fallbackPost(i,acts)}",
+                      "function cpuAction(i){let acts=legal(i),s=preStrategy(i);if(s)return weightedChoice(s,acts);return fallbackPre(i,acts)}")
+
+          # Hero advice logic is preflop-only; no postflop branch remains relevant.
+          s=s.replace("let s=game.street==='preflop'?preStrategy(0):null", "let s=preStrategy(0)")
+
+          p.write_text(s)
+          PY
+      - name: Verify preflop-only behavior
+        run: |
+          grep -q 'function finishStreet(){while(game.board.length<5)game.board.push(game.deck.pop());return showdown()}' index.html
+          grep -q 'game.players.forEach(p=>{p.stack=40;' index.html
+          ! grep -q "game.street='flop'" index.html
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Make game preflop only with automatic showdown'
+          git push
