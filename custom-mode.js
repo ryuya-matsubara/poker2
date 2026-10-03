@@ -8,15 +8,16 @@ let handByPos={LJ:'AA',HJ:'AA',CO:'AA',BTN:'AA',SB:'AA',BB:'AA'};
 let selectedPos='LJ',selectedAction='open';
 const clamp=v=>Math.max(0,Math.min(1,v));
 const rv=(k,h)=>ranges&&ranges[k]?Number(ranges[k][h]||0):0;
+const openSize=p=>p==='SB'?'3.5BB':'2.3BB';
 function hand(r,c){if(r===c)return r+r;return R.indexOf(r)<R.indexOf(c)?r+c+'s':c+r+'o'}
 function before(p){const i=POS.indexOf(p),prev=POS.slice(0,i);return{opener:prev.find(x=>state[x]==='open')||null,three:prev.find(x=>state[x]==='3bet')||null,limpers:prev.filter(x=>state[x]==='limp')}}
-function options(p){const x=before(p);if(x.three)return[['fold','Fold'],['call','Call'],['4bet','4bet']];if(x.opener)return[['fold','Fold'],['call','Call'],['3bet','3bet']];return[['fold','Fold'],['limp','Limp'],['open','Open']]}
-function label(a){return({fold:'Fold',limp:'Limp',open:'Open',call:'Call','3bet':'3bet','4bet':'4bet'})[a]||a}
+function options(p){const x=before(p);if(x.three)return[['fold','Fold'],['call','Call'],['4bet','4bet']];if(x.opener)return[['fold','Fold'],['call','Call'],['3bet','3bet']];return[['fold','Fold'],['limp','Limp'],['open',`Open ${openSize(p)}`]]}
+function label(a,p=selectedPos){return({fold:'Fold',limp:'Limp',open:`Open ${openSize(p)}`,call:'Call','3bet':'3bet','4bet':'4bet'})[a]||a}
 function rangeInfo(p,a){if(!ranges)return null;const x=before(p),values={};let title='';
  if(x.limpers.length&&!x.opener)return null;
  if(x.three)return null;
  for(const r of R)for(const c of R){const h=hand(r,c);let v=null;
-   if(!x.opener){const o=rv('Open'+p,h),l=rv('Limp'+p,h);if(a==='open'){v=o;title=`${p} Open`}else if(a==='limp'){v=l;title=`${p} Limp`}else if(a==='fold'){v=1-o-l;title=`${p} Fold`}}
+   if(!x.opener){const o=rv('Open'+p,h),l=rv('Limp'+p,h);if(a==='open'){v=o;title=`${p} Open ${openSize(p)}`}else if(a==='limp'){v=l;title=`${p} Limp`}else if(a==='fold'){v=1-o-l;title=`${p} Fold`}}
    else{const t=rv(`3Bet${p}vs${x.opener}`,h),cl=rv(`Call${p}vs${x.opener}`,h);if(a==='3bet'){v=t;title=`${p} 3bet vs ${x.opener}`}else if(a==='call'){v=cl;title=`${p} Call vs ${x.opener}`}else if(a==='fold'){v=1-t-cl;title=`${p} Fold vs ${x.opener}`}}
    if(v!==null)values[h]=clamp(v);
  }
@@ -38,9 +39,9 @@ function render(){const seq=document.getElementById('customSequence2');if(!seq)r
  const x=before(selectedPos),acts=options(selectedPos).map(x=>x[0]);if(!acts.includes(selectedAction))selectedAction=state[selectedPos]&&acts.includes(state[selectedPos])?state[selectedPos]:acts[0];
  document.getElementById('customTitle2').textContent=`${selectedPos} HAND RANGE`;
  document.getElementById('customContext2').textContent=x.three?`${x.three} の3bet以降は、この公開データでは新規プレイヤーのcold 4bet/callを直接表せません`:x.opener?`${x.opener} のオープンに対する ${selectedPos} の戦略`:x.limpers.length?'前にLimpがある履歴はこの公開データでは直接対応していません':'Unopened pot';
- const tabs=document.getElementById('customActionTabs2');tabs.innerHTML=acts.map(a=>`<button class="custom-action-btn ${selectedAction===a?'active':''}" data-a="${a}">${label(a)}</button>`).join('');tabs.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedAction=b.dataset.a;render()});
+ const tabs=document.getElementById('customActionTabs2');tabs.innerHTML=acts.map(a=>`<button class="custom-action-btn ${selectedAction===a?'active':''}" data-a="${a}">${label(a,selectedPos)}</button>`).join('');tabs.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedAction=b.dataset.a;render()});
  const info=rangeInfo(selectedPos,selectedAction),range=document.getElementById('customRange2');range.innerHTML=grid(info);if(info)range.querySelectorAll('[data-hand]').forEach(e=>e.onclick=()=>{handByPos[selectedPos]=e.dataset.hand;render()});
- const selectedHand=handByPos[selectedPos];const chips=acts.map(a=>{const i=rangeInfo(selectedPos,a),v=i?i.values[selectedHand]:null;return`<span class="custom-chip">${label(a)} ${v==null?'—':(Math.round(v*1000)/10)+'%'}</span>`}).join('');document.getElementById('customSummary2').innerHTML=`<strong>${selectedPos} · ${selectedHand}</strong><div class="custom-chips">${chips}</div>`;
+ const selectedHand=handByPos[selectedPos];const chips=acts.map(a=>{const i=rangeInfo(selectedPos,a),v=i?i.values[selectedHand]:null;return`<span class="custom-chip">${label(a,selectedPos)} ${v==null?'—':(Math.round(v*1000)/10)+'%'}</span>`}).join('');document.getElementById('customSummary2').innerHTML=`<strong>${selectedPos} · ${selectedHand}</strong><div class="custom-chips">${chips}</div>`;
 }
 function boot(){inject();fetch(DATA_URL).then(r=>r.json()).then(x=>{ranges=x;render()}).catch(()=>render())}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
