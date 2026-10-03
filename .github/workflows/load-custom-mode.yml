@@ -1,0 +1,38 @@
+name: Load custom mode assets
+
+on:
+  push:
+    paths:
+      - '.github/workflows/load-custom-mode.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          if 'custom-mode.css' not in s:
+              s=s.replace('</head>','<link rel="stylesheet" href="custom-mode.css"></head>',1)
+          if 'custom-mode.js' not in s:
+              s=s.replace('</body>','<script src="custom-mode.js"></script></body>',1)
+          p.write_text(s)
+          PY
+          grep -q 'custom-mode.css' index.html
+          grep -q 'custom-mode.js' index.html
+      - name: Commit
+        run: |
+          rm .github/workflows/load-custom-mode.yml
+          rm -f .github/workflows/add-custom-mode.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Enable custom preflop mode'
+          git push
