@@ -1,0 +1,73 @@
+name: Clean poker2 UI
+
+on:
+  push:
+    paths:
+      - '.github/workflows/clean-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove informational UI and session panel
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html')
+          s=p.read_text()
+
+          # Header: keep only the brand/title.
+          s=re.sub(r'<header><div class="brand">(.*?)</div><div class="top-meta">.*?</div></header>', r'<header><div class="brand">\1</div></header>', s, flags=re.S)
+          s=s.replace('<div class="eyebrow">6-MAX · 40BB · BB ANTE</div>','')
+
+          # Remove explanatory information blocks.
+          s=re.sub(r'\n<div class="notice">.*?</div>', '', s, flags=re.S)
+          s=s.replace('<div class="table-topline">NO LIMIT TEXAS HOLD\'EM · BB ANTE 1BB</div>','<div class="table-topline">NO LIMIT TEXAS HOLD\'EM</div>')
+          s=re.sub(r'<div class="hint" id="hint">.*?</div>', '', s, flags=re.S)
+          s=re.sub(r'<div class="advice" id="strategyAdvice"></div>', '', s)
+          s=re.sub(r'\n<p class="note">.*?</p>', '', s, flags=re.S)
+
+          # Remove the whole SESSION panel while retaining the play panel.
+          s=re.sub(r'<section class="below">(<div class="play-panel">.*?</div>)<aside class="side-panel">.*?</aside></section>', r'<section class="below">\1</section>', s, flags=re.S)
+
+          # One-column play area after Session removal.
+          s=s.replace('.below{display:grid;grid-template-columns:1fr 310px;gap:16px;margin-top:16px}', '.below{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px}')
+
+          # Remove yen conversion from visible seat stacks.
+          s=s.replace('const fmt=n=>`${n.toFixed(Math.abs(n-Math.round(n))<1e-6?0:1)} BB`,money=n=>`¥${Math.round(n*1000).toLocaleString(\'ja-JP\')}`;', 'const fmt=n=>`${n.toFixed(Math.abs(n-Math.round(n))<1e-6?0:1)} BB`;')
+          s=s.replace("<div class=\"stack\">${fmt(p.stack)} · ${money(p.stack)}</div>", "<div class=\"stack\">${fmt(p.stack)}</div>")
+
+          # Strategy data still drives CPU decisions, but no source/frequency info is displayed.
+          s=re.sub(r";let s=game\.street==='preflop'\?preStrategy\(0\):null;if\(s\)\$\('strategyAdvice'\)\.textContent=.*?else \$\('strategyAdvice'\)\.textContent=.*?;}", ';}', s, flags=re.S)
+
+          # Remove render writes to deleted Session elements.
+          for pat in [
+              r";\$\('heroStack'\)\.textContent=`[^`]*`",
+              r";\$\('profit'\)\.textContent=`[^`]*`",
+              r";\$\('handsPlayed'\)\.textContent=handsPlayed",
+              r";\$\('seatPosition'\)\.textContent=posForSeat\(0\)"
+          ]:
+              s=re.sub(pat, '', s)
+
+          p.write_text(s)
+          PY
+      - name: Sanity check
+        run: |
+          ! grep -q '1 BB = ¥1,000' index.html
+          ! grep -q '>SESSION<' index.html
+          ! grep -q 'strategyAdvice' index.html
+          ! grep -q '戦略データ:' index.html
+          grep -q 'POKER ROOM' index.html
+      - name: Commit cleaned UI
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Remove extra info and session panel'
+          git push
