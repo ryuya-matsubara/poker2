@@ -1,0 +1,52 @@
+name: Align preflop actions to MTT 40BB GTO sizing
+
+on:
+  push:
+    paths:
+      - '.github/workflows/align-preflop-sizes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Align sizing and action tree
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          s=s.replace('プリフロップCPUは公開 MTT 40BB GTO レンジを参照します。公開データの本来のサイズは open 2.3BB（SB 3.5BB）等のため、このアプリの 2.5BB / 7.5BB 固定サイズに対する厳密なGTOではありません。','プリフロップのアクションサイズを公開 MTT 40BB GTO データの条件に合わせています。Open 2.3BB（SB 3.5BB）、3bet は IP 3x / OOP 4x（IP上限9BB・OOP上限10BB）、4bet は40BBオールインです。')
+          s=s.replace('pre:{opener:null,three:null,stage:0}', 'pre:{opener:null,three:null,stage:0,openSize:null,threeSize:null}')
+          s=s.replace('game.pre={opener:null,three:null,stage:0}', 'game.pre={opener:null,three:null,stage:0,openSize:null,threeSize:null}')
+          old="""function legal(i){let p=game.players[i],toCall=Math.max(0,game.highest-p.streetBet);if(game.street!=='preflop')return postLegal(i,toCall);let a=[];if(toCall>0)a.push(['fold','フォールド']);if(toCall===0)a.push(['check','チェック']);else a.push(['call',`コール ${fmt(Math.min(toCall,p.stack))}`]);if(p.stack>toCall+.001){if(game.highest<=1.0001&&p.streetBet<=1.0001)a.push(['bet','ベット 2.5BB']);else if(game.highest<=2.5001)a.push(['raise','レイズ 7.5BB']);a.push(['allin',`オールイン ${fmt(p.stack+p.streetBet)}`])}return a}"""
+          new="""function postflopRank(pos){return {SB:0,BB:1,LJ:2,HJ:3,CO:4,BTN:5}[pos]??0}
+          function openTarget(i){return posForSeat(i)==='SB'?3.5:2.3}
+          function threeBetTarget(i){let pr=game.pre,open=pr.openSize||game.highest,hero=posForSeat(i),villain=pr.opener,ip=villain&&postflopRank(hero)>postflopRank(villain),mult=ip?3:4,cap=ip?9:10;return Math.min(open*mult,cap)}
+          function legal(i){let p=game.players[i],toCall=Math.max(0,game.highest-p.streetBet);if(game.street!=='preflop')return postLegal(i,toCall);let a=[];if(toCall>0)a.push(['fold','フォールド']);if(toCall===0)a.push(['check','チェック']);else a.push(['call',`コール ${fmt(Math.min(toCall,p.stack))}`]);if(p.stack>toCall+.001){if(game.pre.stage===0){let t=openTarget(i);if(t>game.highest+.001)a.push(['bet',`オープン ${fmt(t)}`])}else if(game.pre.stage===1){let t=threeBetTarget(i);if(t>game.highest+.001)a.push(['raise',`3ベット ${fmt(t)}`])}else if(game.pre.stage===2){a.push(['allin',`4ベット オールイン ${fmt(p.stack+p.streetBet)}`])}}return a}"""
+          if old not in s:
+              raise SystemExit('expected legal() block not found')
+          s=s.replace(old,new)
+          s=s.replace("else if(act==='bet'){payTo(i,2.5);game.highest=2.5;aggr=true;label='2.5BB';if(!game.pre.opener){game.pre.opener=posForSeat(i);game.pre.stage=1}}", "else if(act==='bet'){let target=openTarget(i);payTo(i,target);game.highest=target;aggr=true;label=`OPEN ${fmt(target)}`;if(!game.pre.opener){game.pre.opener=posForSeat(i);game.pre.openSize=target;game.pre.stage=1}}")
+          s=s.replace("else if(act==='raise'&&game.street==='preflop'){payTo(i,7.5);game.highest=7.5;aggr=true;label='7.5BB';game.pre.three=posForSeat(i);game.pre.stage=2}", "else if(act==='raise'&&game.street==='preflop'){let target=threeBetTarget(i);payTo(i,target);game.highest=target;aggr=true;label=`3BET ${fmt(target)}`;game.pre.three=posForSeat(i);game.pre.threeSize=target;game.pre.stage=2}")
+          s=s.replace("else if(act==='allin'){let target=p.streetBet+p.stack;payTo(i,target);if(target>game.highest+1e-9){game.highest=target;aggr=true}label='ALL-IN';game.pre.stage=Math.max(game.pre.stage,3)}", "else if(act==='allin'){let target=p.streetBet+p.stack;payTo(i,target);if(target>game.highest+1e-9){game.highest=target;aggr=true}label='ALL-IN';if(game.street==='preflop')game.pre.stage=Math.max(game.pre.stage,3)}")
+          s=s.replace("if(sc>.86&&map.includes('allin')&&tc>=7.5)return 'allin';", "if(sc>.86&&map.includes('allin'))return 'allin';")
+          p.write_text(s)
+
+          r=Path('README.md')
+          t=r.read_text()
+          t=t.replace('- Preflop action abstraction: unopened `Fold / Limp 1BB / Open to 2.5BB / All-in`; facing 2.5BB `Fold / Call / Raise to 7.5BB / All-in`; facing 7.5BB `Fold / Call / All-in`; facing all-in `Fold / Call`.', '- Preflop actions match the public MTT 40BB sizing profile: unopened `Fold / Limp / Open to 2.3BB` (SB opens to 3.5BB); facing an open `Fold / Call / 3-bet` where 3-bet is 3x IP or 4x OOP, capped at 9BB IP / 10BB OOP; facing a 3-bet `Fold / Call / 4-bet all-in`; facing the all-in `Fold / Call`.')
+          t=t.replace('The public dataset is 6-max MTT, 40BB, ante 1BB with mixed frequencies. Its native sizing profile is **2.3BB open (SB 3.5BB), 3-bet 3x IP / 4x OOP, 4-bet all-in**. This app intentionally enforces the requested **2.5BB open / 7.5BB raise** abstraction, so the imported frequencies are the closest public 40BB/ante reference, not an exact Nash equilibrium for this altered sizing tree.', 'The public dataset is 6-max MTT, 40BB, ante 1BB with mixed frequencies. The app now uses its native sizing profile: **2.3BB open (SB 3.5BB), 3-bet 3x IP / 4x OOP with 9BB/10BB caps, and 4-bet all-in**.')
+          r.write_text(t)
+          PY
+      - name: Commit aligned action tree
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html README.md
+          git diff --cached --quiet && exit 0
+          git commit -m 'Align game actions to MTT 40BB GTO sizing'
+          git push
