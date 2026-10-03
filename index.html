@@ -10,7 +10,7 @@
 .range-modal{position:fixed;inset:0;z-index:50;background:#020807d9;display:flex;align-items:flex-end;justify-content:center;padding:12px}.range-modal[hidden]{display:none}.range-box{width:min(760px,100%);max-height:88vh;overflow:auto;background:#101c1a;border:1px solid #3b5750;border-radius:18px 18px 10px 10px;padding:15px;box-shadow:0 24px 70px #000b}.range-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.range-head h3{margin:0;font-size:16px}.range-sub{font-size:11px;color:var(--muted);margin-top:3px}.range-close{border:0;background:#243732;color:var(--text);width:32px;height:32px;border-radius:50%;font-size:19px}.range-scroll{overflow-x:auto;padding-bottom:3px}.range-grid{display:grid;grid-template-columns:repeat(13,1fr);gap:2px;min-width:390px}.range-cell{aspect-ratio:1/1;min-width:28px;border:1px solid #ffffff18;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f6f8f4;text-shadow:0 1px 2px #000;font-weight:800;line-height:1}.range-hand{font-size:9px}.range-pct{font-size:7px;margin-top:3px}.range-empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
 @media(max-width:760px){.app{padding:13px 10px 25px}.table-wrap{min-height:430px;border-width:6px;border-radius:175px;padding:40px 3%}.table-wrap:before{inset:8px;border-radius:170px}.seat{width:92px;min-height:59px;padding:5px 4px}.name{font-size:10px}.stack,.bet{font-size:9px}.action-label{font-size:8px;padding:1px 5px}.seat-cards{top:calc(100% + 4px);gap:2px}.mini-card{font-size:9px;padding:2px 3px}.card{width:42px;height:60px}.card .rank{font-size:19px}.card .suit{font-size:17px}.board{gap:5px;margin:12px 0;min-height:64px}.action-choice{flex:1 1 30%;min-width:92px}.action-choice .btn{width:100%;height:58px;padding:8px 6px}.range-modal{padding:7px}.range-box{padding:12px 9px}.range-grid{min-width:355px;gap:1px}.range-cell{min-width:26px}.range-hand{font-size:8px}.range-pct{font-size:6px}}
 </style>
-</head>
+<link rel="stylesheet" href="custom-mode.css"></head>
 <body>
 <main class="app">
 <header><div class="brand"><div class="mark">♠</div><h1>POKER ROOM</h1></div></header>
@@ -50,5 +50,5 @@ $('rangeClose').onclick=()=>$('rangeModal').hidden=true;$('rangeModal').onclick=
 fetch(DATA_URL).then(r=>r.ok?r.json():Promise.reject(new Error('range load failed'))).then(x=>{ranges=x}).catch(()=>{ranges=null}).finally(()=>startHand(true));
 })();
 </script>
-</body>
+<script src="custom-mode.js"></script></body>
 </html>
