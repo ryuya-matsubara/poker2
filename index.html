@@ -28,6 +28,7 @@ function seatForPos(p){for(let i=0;i<6;i++)if(posForSeat(i)===p)return i;return 
 function handKey(cards){let a=cards[0],b=cards[1],ia=RANKS.indexOf(a.r),ib=RANKS.indexOf(b.r);if(ia<ib)[a,b]=[b,a];return a.r+b.r+(a.r===b.r?'':a.s===b.s?'s':'o')}
 function cardHtml(c,mini=false,back=false){if(back)return `<span class="mini-card back">◆</span>`;let red=c.s==='♥'||c.s==='♦';if(mini)return `<span class="mini-card ${red?'red':''}">${c.r}${c.s}</span>`;return `<div class="card ${red?'red':''}"><div class="rank">${c.r}</div><div class="suit">${c.s}</div></div>`}
 function startHand(reset=false){
+ if($('result'))$('result').innerHTML='';
  if(!game||reset){game={players:Array.from({length:6},(_,i)=>({name:i===0?'あなた':`CPU${i}`,stack:40,hole:[],fold:false,allin:false,contrib:0,streetBet:0,action:'',total:0})),board:[],street:'preflop',pot:0,highest:1,queue:[],deck:[],pre:{opener:null,three:null,stage:0,openSize:null,threeSize:null},done:false};}
  else{game.players.forEach(p=>{p.stack=40;p.hole=[];p.fold=false;p.allin=false;p.contrib=0;p.streetBet=0;p.action='';p.total=0});game.board=[];game.street='preflop';game.pot=0;game.highest=1;game.queue=[];game.deck=[];game.pre={opener:null,three:null,stage:0,openSize:null,threeSize:null};game.done=false;button=(button+1)%6;}
  handsPlayed++;game.deck=deck();for(let k=0;k<2;k++)for(const p of game.players)p.hole.push(game.deck.pop());
