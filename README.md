@@ -2,6 +2,8 @@
 
 6-max No-Limit Texas Hold'em browser app for GitHub Pages.
 
+Live site: https://ryuya-matsubara.github.io/poker2/
+
 - Starting stack: 40BB
 - SB 0.5BB / BB 1BB / BB ante 1BB
 - Preflop action abstraction: unopened `Fold / Limp 1BB / Open to 2.5BB / All-in`; facing 2.5BB `Fold / Call / Raise to 7.5BB / All-in`; facing 7.5BB `Fold / Call / All-in`; facing all-in `Fold / Call`.
