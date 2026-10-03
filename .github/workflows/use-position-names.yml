@@ -1,0 +1,47 @@
+name: Use position names only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/use-position-names.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace CPU labels with position names
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html')
+          s=p.read_text()
+          # Seats: show only position, except hero remains 'あなた'.
+          old="<div class=\"name\">${p.name}<span class=\"badge\">${posForSeat(i)}${i===button?' · D':''}</span></div>"
+          new="<div class=\"name\">${i===0?'あなた':posForSeat(i)}${i===button?' · D':''}</div>"
+          s=s.replace(old,new)
+          # Turn status/result/log references should use position for non-hero players.
+          s=s.replace("`${game.players[game.queue[0]].name} の番`", "`${game.queue[0]===0?'あなた':posForSeat(game.queue[0])} の番`")
+          s=s.replace("`${p.name} (${posForSeat(i)}): ${label}`", "`${i===0?'あなた':posForSeat(i)}: ${label}`")
+          s=s.replace("`${game.players[w].name} が ${fmt(game.pot)} を獲得`", "`${w===0?'あなた':posForSeat(w)} が ${fmt(game.pot)} を獲得`")
+          s=s.replace("`${game.players[i].name} ${fmt(x)}`", "`${i===0?'あなた':posForSeat(i)} ${fmt(x)}`")
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          ! grep -q 'CPU1' index.html
+          ! grep -q 'CPU2' index.html
+          ! grep -q 'CPU3' index.html
+          ! grep -q 'CPU4' index.html
+          ! grep -q 'CPU5' index.html
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Use position names instead of CPU labels'
+          git push
