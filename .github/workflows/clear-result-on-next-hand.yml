@@ -1,0 +1,38 @@
+name: Clear previous result on next hand
+
+on:
+  push:
+    paths:
+      - '.github/workflows/clear-result-on-next-hand.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clear result when a new hand starts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          needle="function startHand(reset=false){\n"
+          repl="function startHand(reset=false){\n if($('result'))$('result').innerHTML='';\n"
+          if needle not in s:
+              raise SystemExit('startHand marker not found')
+          s=s.replace(needle,repl,1)
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          grep -q "if(\$('result'))\$('result').innerHTML=''" index.html
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Clear previous hand result when next hand starts'
+          git push
