@@ -1,0 +1,84 @@
+name: Add custom mode
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-custom-mode.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+
+          css=r'''
+.mode-tabs{display:flex;background:#0d1917;border:1px solid var(--line);padding:3px;border-radius:10px}.mode-tab{border:0;background:transparent;color:var(--muted);padding:8px 12px;border-radius:7px;font-weight:800;cursor:pointer}.mode-tab.active{background:#29443e;color:#fff}.custom-grid{display:grid;grid-template-columns:minmax(250px,340px) 1fr;gap:16px}.sequence{display:flex;flex-direction:column;gap:8px}.seq-row{display:grid;grid-template-columns:54px 1fr;gap:8px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0d1917}.seq-row.selected{border-color:var(--green)}.seq-pos{font-weight:900;font-size:16px;cursor:pointer}.seq-row select{width:100%;background:#172824;color:#fff;border:1px solid #3a554e;border-radius:8px;padding:9px}.custom-right{min-width:0}.custom-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}.small-btn{border:1px solid #3a554e;background:#172824;color:#fff;border-radius:8px;padding:8px 11px;font-weight:800;cursor:pointer}.small-btn.active{background:var(--green);color:#14200f;border-color:var(--green)}.hand-summary{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0d1917}.prob-chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.chip{padding:5px 8px;border-radius:999px;background:#263a35;font-size:11px}.custom-range-wrap{overflow-x:auto}.unsupported{padding:24px;text-align:center;color:var(--muted);border:1px dashed #385149;border-radius:10px}.reset-btn{margin-top:10px;border:1px solid #536b65;background:transparent;color:#fff;border-radius:8px;padding:8px 10px;cursor:pointer}.range-cell.selected{outline:2px solid #fff;outline-offset:-2px}@media(max-width:760px){.custom-grid{grid-template-columns:1fr}.mode-tab{padding:7px 9px;font-size:12px}}
+'''
+          marker='@media(max-width:760px)'
+          if '.custom-grid{' not in s:
+              s=s.replace(marker,css+marker,1)
+
+          old_header='<header><div class="brand"><div class="mark">♠</div><h1>POKER ROOM</h1></div></header>'
+          new_header='<header style="justify-content:space-between"><div class="brand"><div class="mark">♠</div><h1>POKER ROOM</h1></div><div class="mode-tabs"><button class="mode-tab active" id="gameTab">GAME</button><button class="mode-tab" id="customTab">CUSTOM</button></div></header>'
+          if 'id="customTab"' not in s:
+              if old_header not in s: raise SystemExit('header marker not found')
+              s=s.replace(old_header,new_header,1)
+
+          if 'id="gameMode"' not in s:
+              table='<section class="table-wrap">'
+              if table not in s: raise SystemExit('table marker not found')
+              s=s.replace(table,'<section id="gameMode">'+table,1)
+              close='</section>\n</main>\n<div class="range-modal"'
+              custom='''</section>\n<section id="customMode" hidden><section class="play-panel"><div class="play-head"><div><h2>CUSTOM MODE</h2><div class="status">LJから順にアクションを指定し、ポジションを選ぶとその局面のレンジを確認できます。</div></div></div><div class="custom-grid"><div><div class="sequence" id="customSequence"></div><button class="reset-btn" id="customReset">リセット</button></div><div class="custom-right"><div class="play-head"><div><h2 id="customTitle">LJ HAND RANGE</h2><div class="status" id="customContext"></div></div></div><div class="custom-toolbar" id="customActionTabs"></div><div class="custom-range-wrap" id="customRange"></div><div class="hand-summary" id="customHandSummary"></div></div></div></section></section>\n</main>\n<div class="range-modal"'''
+              if close not in s: raise SystemExit('main close marker not found')
+              s=s.replace(close,custom,1)
+
+          js=r'''
+const CUSTOM_POS=['LJ','HJ','CO','BTN','SB','BB'];
+let customActionsState={LJ:'',HJ:'',CO:'',BTN:'',SB:'',BB:''},customPos='LJ',customView='open',customHand='AA';
+function customBefore(p){const i=CUSTOM_POS.indexOf(p),prev=CUSTOM_POS.slice(0,i),opens=prev.filter(x=>customActionsState[x]==='open'),threes=prev.filter(x=>customActionsState[x]==='3bet'),limps=prev.filter(x=>customActionsState[x]==='limp');return{opener:opens[0]||null,three:threes[0]||null,limped:limps.length>0}}
+function customOptions(p){const x=customBefore(p);if(x.limped&&!x.opener)return[['fold','Fold'],['limp','Limp'],['open','Open']];if(!x.opener)return[['fold','Fold'],['limp','Limp'],['open','Open']];if(!x.three)return[['fold','Fold'],['call','Call'],['3bet','3bet']];return[['fold','Fold'],['call','Call'],['4bet','4bet all-in']]}
+function customRangeInfo(p,a){if(!ranges)return null;const x=customBefore(p),values={};let title='';if(x.limped&&!x.opener)return null;for(const r of GRID_RANKS)for(const c of GRID_RANKS){const h=gridHand(r,c);let v=null;if(!x.opener){const o=rangeVal('Open'+p,h),l=rangeVal('Limp'+p,h);if(a==='open'){v=o;title=`${p} Open`}else if(a==='limp'){v=l;title=`${p} Limp`}else if(a==='fold'){v=1-o-l;title=`${p} Fold`}}else if(!x.three){const r3=rangeVal(`3Bet${p}vs${x.opener}`,h),cl=rangeVal(`Call${p}vs${x.opener}`,h);if(a==='3bet'){v=r3;title=`${p} 3bet vs ${x.opener}`}else if(a==='call'){v=cl;title=`${p} Call vs ${x.opener}`}else if(a==='fold'){v=1-r3-cl;title=`${p} Fold vs ${x.opener}`}}if(v!==null)values[h]=clamp(v)}return Object.keys(values).length?{title,values}:null}
+function customGrid(info){if(!info)return'<div class="unsupported">このアクション履歴に直接対応する公開レンジデータはありません。</div>';let html='<div class="range-grid">';for(const r of GRID_RANKS)for(const c of GRID_RANKS){const h=gridHand(r,c),v=clamp(info.values[h]||0),pc=Math.round(v*1000)/10,stop=(v*100).toFixed(1);html+=`<div class="range-cell ${customHand===h?'selected':''}" data-hand="${h}" style="background:linear-gradient(to right,#a9ee61 0%,#a9ee61 ${stop}%,#39433f ${stop}%,#39433f 100%)"><div class="range-hand">${h}</div><div class="range-pct">${pc}%</div></div>`}return html+'</div>'}
+function customLabel(a){return({fold:'Fold',limp:'Limp',open:'Open',call:'Call','3bet':'3bet','4bet':'4bet'})[a]||a}
+function renderCustom(){if(!$('customSequence'))return;$('customSequence').innerHTML=CUSTOM_POS.map((p,i)=>{const prevOK=CUSTOM_POS.slice(0,i).every(x=>customActionsState[x]),disabled=i>0&&!prevOK,opts=customOptions(p);return`<div class="seq-row ${customPos===p?'selected':''}"><div class="seq-pos" data-pos="${p}">${p}</div><select data-pos="${p}" ${disabled?'disabled':''}><option value="">アクションを選択</option>${opts.map(([v,l])=>`<option value="${v}" ${customActionsState[p]===v?'selected':''}>${l}</option>`).join('')}</select></div>`}).join('');$('customSequence').querySelectorAll('.seq-pos').forEach(e=>e.onclick=()=>{customPos=e.dataset.pos;const acts=customOptions(customPos).map(x=>x[0]);customView=customActionsState[customPos]&&acts.includes(customActionsState[customPos])?customActionsState[customPos]:acts[0];renderCustom()});$('customSequence').querySelectorAll('select').forEach(e=>e.onchange=()=>{const p=e.dataset.pos,idx=CUSTOM_POS.indexOf(p);customActionsState[p]=e.value;for(const q of CUSTOM_POS.slice(idx+1))customActionsState[q]='';customPos=p;customView=e.value||customOptions(p)[0][0];renderCustom()});const x=customBefore(customPos),acts=customOptions(customPos).map(v=>v[0]);if(!acts.includes(customView))customView=customActionsState[customPos]&&acts.includes(customActionsState[customPos])?customActionsState[customPos]:acts[0];$('customTitle').textContent=`${customPos} HAND RANGE`;$('customContext').textContent=x.opener?`${x.opener} のオープンに対する ${customPos} の戦略`:x.limped?'前にLimpがある履歴はこの公開データでは直接対応していません':'Unopened pot';$('customActionTabs').innerHTML=acts.map(a=>`<button class="small-btn ${customView===a?'active':''}" data-a="${a}">${customLabel(a)}</button>`).join('');$('customActionTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{customView=b.dataset.a;renderCustom()});const info=customRangeInfo(customPos,customView);$('customRange').innerHTML=customGrid(info);if(info)$('customRange').querySelectorAll('[data-hand]').forEach(e=>e.onclick=()=>{customHand=e.dataset.hand;renderCustom()});const probs=acts.map(a=>{const inf=customRangeInfo(customPos,a),v=inf?inf.values[customHand]:null;return`<span class="chip">${customLabel(a)} ${v==null?'—':(Math.round(v*1000)/10)+'%'}</span>`}).join('');$('customHandSummary').innerHTML=`<strong>${customPos} · ${customHand}</strong><div class="prob-chips">${probs}</div>`}
+function setMode(m){const c=m==='custom';$('gameMode').hidden=c;$('customMode').hidden=!c;$('gameTab').classList.toggle('active',!c);$('customTab').classList.toggle('active',c);if(c)renderCustom()}
+$('gameTab').onclick=()=>setMode('game');$('customTab').onclick=()=>setMode('custom');$('customReset').onclick=()=>{customActionsState={LJ:'',HJ:'',CO:'',BTN:'',SB:'',BB:''};customPos='LJ';customView='open';customHand='AA';renderCustom()};
+'''
+          marker2="$('rangeClose').onclick=()=>$('rangeModal').hidden=true;"
+          if 'function renderCustom()' not in s:
+              if marker2 not in s: raise SystemExit('JS marker not found')
+              s=s.replace(marker2,js+'\n'+marker2,1)
+          s=s.replace(".finally(()=>startHand(true));",".finally(()=>{startHand(true);renderCustom()});")
+          p.write_text(s)
+          PY
+      - name: Validate JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          a=s.index('<script>')+8
+          b=s.index('</script>',a)
+          Path('/tmp/app.js').write_text(s[a:b])
+          PY
+          node --check /tmp/app.js
+          grep -q 'id="customTab"' index.html
+          grep -q 'function renderCustom()' index.html
+          grep -q 'id="customRange"' index.html
+      - name: Commit patch and remove temporary workflow
+        run: |
+          rm .github/workflows/add-custom-mode.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add custom preflop range mode'
+          git push
