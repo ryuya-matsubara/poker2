@@ -1,0 +1,17 @@
+{
+  "name": "POKER ROOM 40BB",
+  "short_name": "POKER ROOM",
+  "start_url": "/poker2/",
+  "scope": "/poker2/",
+  "display": "standalone",
+  "background_color": "#0b1413",
+  "theme_color": "#0b1413",
+  "icons": [
+    {
+      "src": "/poker2/apple-touch-icon.png?v=4",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
